@@ -23,8 +23,7 @@ func NewJobsService(pool *pool.WorkerPool) *jobsService {
 }
 
 func (s *jobsService) CreateJobs(ctx context.Context, req *model.Job) error {
-	// TODO: Implement job creation
-	return nil
+	return s.pool.SubmitJob(req)
 }
 
 func (s *jobsService) ListJobs(ctx context.Context, filter *model.JobFilter) ([]*model.Job, error) {
