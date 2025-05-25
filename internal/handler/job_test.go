@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/dnakolan/worker-pool-service/internal/model"
 	"github.com/go-chi/chi"
@@ -168,7 +169,7 @@ func TestCreateJobsHandler(t *testing.T) {
 	}
 }
 
-func TestGetWaypointHandler(t *testing.T) {
+func TestGetJobsHandler(t *testing.T) {
 	mockService := new(MockJobsService)
 	handler := NewJobsHandler(mockService)
 	testUID := uuid.New()
@@ -211,6 +212,8 @@ func TestGetWaypointHandler(t *testing.T) {
 func TestListJobsHandler(t *testing.T) {
 	mockService := new(MockJobsService)
 	handler := NewJobsHandler(mockService)
+	testUID := uuid.New()
+	now := time.Now()
 
 	tests := []struct {
 		name           string
@@ -218,7 +221,54 @@ func TestListJobsHandler(t *testing.T) {
 		setupMock      func()
 		expectedStatus int
 		expectedLen    int
-	}{}
+	}{{
+		name:        "successful list - no filters",
+		queryParams: map[string]string{},
+		setupMock: func() {
+			mockService.On("ListJobs", mock.Anything, mock.MatchedBy(func(f *model.JobFilter) bool {
+				return f.Type == nil && f.Status == nil
+			})).Return([]*model.Job{
+				{
+					UID:       testUID,
+					Type:      "sleep",
+					Payload:   model.SleepJobPayload{Duration: "1s"},
+					CreatedAt: &now,
+				},
+			}, nil)
+		},
+		expectedStatus: http.StatusOK,
+		expectedLen:    1,
+	},
+		{
+			name: "successful list - with filters",
+			queryParams: map[string]string{
+				"status": "pending",
+			},
+			setupMock: func() {
+				mockService.On("ListJobs", mock.Anything, mock.MatchedBy(func(f *model.JobFilter) bool {
+					return *f.Status == "pending" && f.Type == nil
+				})).Return([]*model.Job{
+					{
+						UID:       testUID,
+						Type:      "sleep",
+						Payload:   model.SleepJobPayload{Duration: "1s"},
+						CreatedAt: &now,
+					},
+				}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedLen:    1,
+		},
+		{
+			name: "invalid filter values",
+			queryParams: map[string]string{
+				"type": "invalid",
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+			expectedLen:    0,
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
