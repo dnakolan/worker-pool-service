@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/dnakolan/worker-pool-service/internal/handler"
+	"github.com/dnakolan/worker-pool-service/internal/pool"
+	"github.com/dnakolan/worker-pool-service/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -19,9 +21,16 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	h := handler.NewHealthHandler()
+	healthHandler := handler.NewHealthHandler()
+	router.Get("/health", healthHandler.GetHealthHandler)
 
-	router.Get("/health", h.GetHealthHandler)
+	pool := pool.NewWorkerPool(context.Background(), 10, 10)
+	jobService := service.NewJobsService(pool)
+	jobsHandler := handler.NewJobsHandler(jobService)
+
+	router.Post("/jobs", jobsHandler.CreateJobsHandler)
+	router.Get("/jobs", jobsHandler.ListJobsHandler)
+	router.Get("/jobs/{id}", jobsHandler.GetJobsHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",
