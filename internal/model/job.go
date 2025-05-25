@@ -169,3 +169,21 @@ func (r *CreateJobRequest) ParsePayload() (JobPayload, error) {
 		return nil, fmt.Errorf("unknown job type: %s", r.Type)
 	}
 }
+
+// IsValidJobStatus checks if a string is a valid job status
+func IsValidJobStatus(s string) bool {
+	switch JobStatus(s) {
+	case JobStatusPending, JobStatusRunning, JobStatusCompleted, JobStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// ParseJobStatus converts a string to JobStatus, returning an error if invalid
+func ParseJobStatus(s string) (JobStatus, error) {
+	if !IsValidJobStatus(s) {
+		return "", fmt.Errorf("invalid job status: %s", s)
+	}
+	return JobStatus(s), nil
+}

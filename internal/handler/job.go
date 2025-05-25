@@ -2,7 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/dnakolan/worker-pool-service/internal/model"
@@ -51,11 +53,54 @@ func (h *JobsHandler) CreateJobsHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *JobsHandler) ListJobsHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-	w.Write([]byte("Not implemented"))
+	filter, err := parseFilter(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	jobs, err := h.service.ListJobs(r.Context(), filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(jobs)
 }
 
 func (h *JobsHandler) GetJobsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	w.Write([]byte("Not implemented"))
+}
+
+func parseFilter(query url.Values) (*model.JobFilter, error) {
+	var jobType *string
+	var jobStatus *model.JobStatus
+
+	// Handle job type
+	if typeStr := query.Get("type"); typeStr != "" {
+		jobType = &typeStr
+	}
+
+	// Handle job status
+	if statusStr := query.Get("status"); statusStr != "" {
+		if !model.IsValidJobStatus(statusStr) {
+			return nil, fmt.Errorf("invalid status: %s", statusStr)
+		}
+		status := model.JobStatus(statusStr)
+		jobStatus = &status
+	}
+
+	filter := &model.JobFilter{
+		Type:   jobType,
+		Status: jobStatus,
+	}
+
+	if err := filter.Validate(); err != nil {
+		return nil, err
+	}
+
+	return filter, nil
 }

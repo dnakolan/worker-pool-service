@@ -23,12 +23,16 @@ func NewJobsService(pool *pool.WorkerPool) *jobsService {
 }
 
 func (s *jobsService) CreateJobs(ctx context.Context, req *model.Job) error {
-	return s.pool.SubmitJob(req)
+	return s.pool.SubmitJob(ctx, req)
 }
 
 func (s *jobsService) ListJobs(ctx context.Context, filter *model.JobFilter) ([]*model.Job, error) {
-	// TODO: Implement list jobs
-	return nil, nil
+	jobs := s.pool.GetAllJobs(ctx, filter)
+
+	if jobs == nil {
+		return make([]*model.Job, 0), nil
+	}
+	return jobs, nil
 }
 
 func (s *jobsService) GetJobs(ctx context.Context, uid uuid.UUID) (*model.Job, error) {
