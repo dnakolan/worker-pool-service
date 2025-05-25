@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -43,20 +44,103 @@ func (m *MockJobsService) GetJobs(ctx context.Context, uid uuid.UUID) (*model.Jo
 func TestCreateJobsHandler(t *testing.T) {
 	mockService := new(MockJobsService)
 	handler := NewJobsHandler(mockService)
-	testUID := uuid.New()
 
 	tests := []struct {
 		name           string
-		uid            string
+		request        model.CreateJobRequest
 		setupMock      func()
 		expectedStatus int
-	}{}
+	}{
+		{
+			name: "successful creation",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`{"duration":"1s"}`),
+			},
+			setupMock: func() {
+				mockService.On("CreateJobs", mock.Anything, mock.MatchedBy(func(j *model.Job) bool {
+					if j.Type != "sleep" {
+						return false
+					}
+					payload, ok := j.Payload.(model.SleepJobPayload)
+					return ok && payload.Duration == "1s"
+				})).Return(nil)
+			},
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "invalid job type",
+			request: model.CreateJobRequest{
+				Type:    "invalid",
+				Payload: json.RawMessage(`{}`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid sleep payload - missing duration",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`{}`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid payload format",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`"invalid"`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid payload format - string instead of object",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`"invalid"`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid payload format - array instead of object",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`[]`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid payload format - number instead of object",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`123`),
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "invalid duration format",
+			request: model.CreateJobRequest{
+				Type:    "sleep",
+				Payload: json.RawMessage(`{"duration":123}`), // number instead of string
+			},
+			setupMock:      func() {},
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock()
 
-			req := httptest.NewRequest(http.MethodPost, "/jobs", nil)
+			reqBody, err := json.Marshal(tt.request)
+			assert.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/jobs", bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
 			// Create a new chi context with the URL parameter
@@ -71,7 +155,12 @@ func TestCreateJobsHandler(t *testing.T) {
 				var response model.Job
 				err := json.NewDecoder(w.Body).Decode(&response)
 				assert.NoError(t, err)
-				assert.Equal(t, testUID, response.UID)
+				assert.NotEmpty(t, response.UID)
+				assert.Equal(t, tt.request.Type, response.Type)
+				assert.Equal(t, model.JobStatusPending, response.Status)
+				payload, ok := response.Payload.(model.SleepJobPayload)
+				assert.True(t, ok)
+				assert.Equal(t, "1s", payload.Duration)
 			}
 
 			mockService.AssertExpectations(t)
