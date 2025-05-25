@@ -1,0 +1,162 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/dnakolan/worker-pool-service/internal/model"
+	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+// MockJobsService is a mock implementation of service.JobsService
+type MockJobsService struct {
+	mock.Mock
+}
+
+func (m *MockJobsService) CreateJobs(ctx context.Context, wp *model.Job) error {
+	args := m.Called(ctx, wp)
+	return args.Error(0)
+}
+
+func (m *MockJobsService) ListJobs(ctx context.Context, filter *model.JobFilter) ([]*model.Job, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.Job), args.Error(1)
+}
+
+func (m *MockJobsService) GetJobs(ctx context.Context, uid uuid.UUID) (*model.Job, error) {
+	args := m.Called(ctx, uid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Job), args.Error(1)
+}
+
+func TestCreateJobsHandler(t *testing.T) {
+	mockService := new(MockJobsService)
+	handler := NewJobsHandler(mockService)
+	testUID := uuid.New()
+
+	tests := []struct {
+		name           string
+		uid            string
+		setupMock      func()
+		expectedStatus int
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			req := httptest.NewRequest(http.MethodPost, "/jobs", nil)
+			w := httptest.NewRecorder()
+
+			// Create a new chi context with the URL parameter
+			rctx := chi.NewRouteContext()
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			handler.CreateJobsHandler(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == http.StatusCreated {
+				var response model.Job
+				err := json.NewDecoder(w.Body).Decode(&response)
+				assert.NoError(t, err)
+				assert.Equal(t, testUID, response.UID)
+			}
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGetWaypointHandler(t *testing.T) {
+	mockService := new(MockJobsService)
+	handler := NewJobsHandler(mockService)
+	testUID := uuid.New()
+
+	tests := []struct {
+		name           string
+		uid            string
+		setupMock      func()
+		expectedStatus int
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			req := httptest.NewRequest(http.MethodGet, "/jobs/"+tt.uid, nil)
+			w := httptest.NewRecorder()
+
+			// Create a new chi context with the URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("uid", tt.uid)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			handler.GetJobsHandler(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == http.StatusOK {
+				var response model.Job
+				err := json.NewDecoder(w.Body).Decode(&response)
+				assert.NoError(t, err)
+				assert.Equal(t, testUID, response.UID)
+			}
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestListJobsHandler(t *testing.T) {
+	mockService := new(MockJobsService)
+	handler := NewJobsHandler(mockService)
+
+	tests := []struct {
+		name           string
+		queryParams    map[string]string
+		setupMock      func()
+		expectedStatus int
+		expectedLen    int
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			// Build URL with query parameters
+			req := httptest.NewRequest(http.MethodGet, "/jobs", nil)
+			q := req.URL.Query()
+			for key, value := range tt.queryParams {
+				q.Add(key, value)
+			}
+			req.URL.RawQuery = q.Encode()
+
+			w := httptest.NewRecorder()
+
+			handler.ListJobsHandler(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == http.StatusOK {
+				var response []*model.Job
+				err := json.NewDecoder(w.Body).Decode(&response)
+				assert.NoError(t, err)
+				assert.Len(t, response, tt.expectedLen)
+			}
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
