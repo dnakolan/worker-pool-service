@@ -25,6 +25,9 @@ func main() {
 	router.Get("/health", healthHandler.GetHealthHandler)
 
 	pool := pool.NewWorkerPool(context.Background(), 10, 10)
+	pool.Start()
+	defer pool.Stop()
+
 	jobService := service.NewJobsService(pool)
 	jobsHandler := handler.NewJobsHandler(jobService)
 
