@@ -45,6 +45,18 @@ func NewWorkerPool(ctx context.Context, numWorkers int, poolSize int) *WorkerPoo
 	}
 }
 
+func (p *WorkerPool) SubmitJob(job *model.Job) error {
+	select {
+	case p.jobQueue <- job:
+		p.storeJob(job)
+		return nil
+	case <-p.ctx.Done():
+		return p.ctx.Err()
+	default:
+		return errors.New("job queue is full")
+	}
+}
+
 func (p *WorkerPool) Start() {
 	slog.Info("Starting worker pool", "workers", p.numWorkers)
 
