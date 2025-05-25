@@ -45,16 +45,41 @@ func NewWorkerPool(ctx context.Context, numWorkers int, poolSize int) *WorkerPoo
 	}
 }
 
-func (p *WorkerPool) SubmitJob(job *model.Job) error {
+func (p *WorkerPool) SubmitJob(ctx context.Context, job *model.Job) error {
 	select {
 	case p.jobQueue <- job:
 		p.storeJob(job)
 		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-p.ctx.Done():
 		return p.ctx.Err()
 	default:
 		return errors.New("job queue is full")
 	}
+}
+
+func (p *WorkerPool) GetJob(ctx context.Context, id string) (*model.Job, bool) {
+	p.jobsMutex.RLock()
+	defer p.jobsMutex.RUnlock()
+	job, exists := p.jobs[id]
+	return job, exists
+}
+
+func (p *WorkerPool) GetAllJobs(ctx context.Context, filter *model.JobFilter) []*model.Job {
+	p.jobsMutex.RLock()
+	defer p.jobsMutex.RUnlock()
+	jobs := make([]*model.Job, 0)
+	for _, v := range p.jobs {
+		if filter.Type != nil && *filter.Type != v.Type {
+			continue
+		}
+		if filter.Status != nil && *filter.Status != v.Status {
+			continue
+		}
+		jobs = append(jobs, v)
+	}
+	return jobs
 }
 
 func (p *WorkerPool) Start() {
