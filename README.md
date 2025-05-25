@@ -26,18 +26,20 @@ A service that processes tasks (jobs) sent to a REST API via JSON using a pool o
 ```
 
 # Running the Service
-`go run ./cmd/server`
+```go run ./cmd/server```
 
 # Example Usage (cURL)
 ## Create a waypoint
-```curl -X POST http://localhost:8080/jobs \
+```
+curl -X POST http://localhost:8080/jobs \
   -H "Content-Type: application/json" \
   -d '{
     "type": "sleep",
     "payload": {
         "duration": "5s"
     }
-}'```
+}'
+```
 
 ## List jobs by id
 ```curl http://localhost:8080/jobs/{id}```
