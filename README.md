@@ -64,7 +64,7 @@ Tests cover handler logic, service behavior, and in-memory repo operations.
 TBD
 
 # Time Spent
-TBD
+About 6 hours with a break for lunch :)
 
 # Author
 David Nakolan - david.nakolan@gmail.com
