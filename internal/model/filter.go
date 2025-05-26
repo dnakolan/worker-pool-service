@@ -18,5 +18,14 @@ func (f *JobFilter) Validate() error {
 		}
 	}
 
+	if f.Status != nil {
+		if *f.Status == "" {
+			return fmt.Errorf("status cannot be empty")
+		}
+		if !IsValidJobStatus(string(*f.Status)) {
+			return fmt.Errorf("invalid status: %s", *f.Status)
+		}
+	}
+
 	return nil
 }
