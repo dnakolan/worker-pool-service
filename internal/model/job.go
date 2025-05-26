@@ -101,10 +101,16 @@ func (j *Job) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(temp.Payload, &payload); err != nil {
 			return fmt.Errorf("invalid sleep job payload: %w", err)
 		}
+		if err := payload.Validate(); err != nil {
+			return fmt.Errorf("invalid sleep job payload: %w", err)
+		}
 		j.Payload = payload
 	case "math":
 		var payload MathJobPayload
 		if err := json.Unmarshal(temp.Payload, &payload); err != nil {
+			return fmt.Errorf("invalid math job payload: %w", err)
+		}
+		if err := payload.Validate(); err != nil {
 			return fmt.Errorf("invalid math job payload: %w", err)
 		}
 		j.Payload = payload
