@@ -33,7 +33,7 @@ func main() {
 
 	router.Post("/jobs", jobsHandler.CreateJobsHandler)
 	router.Get("/jobs", jobsHandler.ListJobsHandler)
-	router.Get("/jobs/{id}", jobsHandler.GetJobsHandler)
+	router.Get("/jobs/{uid}", jobsHandler.GetJobsHandler)
 
 	srv := &http.Server{
 		Addr:    ":8080",

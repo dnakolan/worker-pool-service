@@ -9,6 +9,7 @@ import (
 
 	"github.com/dnakolan/worker-pool-service/internal/model"
 	"github.com/dnakolan/worker-pool-service/internal/service"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -71,8 +72,24 @@ func (h *JobsHandler) ListJobsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *JobsHandler) GetJobsHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-	w.Write([]byte("Not implemented"))
+	uid, err := uuid.Parse(chi.URLParam(r, "uid"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	job, err := h.service.GetJobs(r.Context(), uid.String())
+	if err != nil {
+		if err.Error() == "job not found" {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(job)
 }
 
 func parseFilter(query url.Values) (*model.JobFilter, error) {

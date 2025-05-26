@@ -2,16 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/dnakolan/worker-pool-service/internal/model"
 	"github.com/dnakolan/worker-pool-service/internal/pool"
-	"github.com/google/uuid"
 )
 
 type JobsService interface {
 	CreateJobs(ctx context.Context, req *model.Job) error
 	ListJobs(ctx context.Context, filter *model.JobFilter) ([]*model.Job, error)
-	GetJobs(ctx context.Context, uid uuid.UUID) (*model.Job, error)
+	GetJobs(ctx context.Context, uid string) (*model.Job, error)
 }
 
 type jobsService struct {
@@ -35,7 +35,10 @@ func (s *jobsService) ListJobs(ctx context.Context, filter *model.JobFilter) ([]
 	return jobs, nil
 }
 
-func (s *jobsService) GetJobs(ctx context.Context, uid uuid.UUID) (*model.Job, error) {
-	// TODO: Implement get job by id
-	return nil, nil
+func (s *jobsService) GetJobs(ctx context.Context, uid string) (*model.Job, error) {
+	job, exists := s.pool.GetJob(ctx, uid)
+	if !exists {
+		return nil, errors.New("job not found")
+	}
+	return job, nil
 }

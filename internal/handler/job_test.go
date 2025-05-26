@@ -34,7 +34,7 @@ func (m *MockJobsService) ListJobs(ctx context.Context, filter *model.JobFilter)
 	return args.Get(0).([]*model.Job), args.Error(1)
 }
 
-func (m *MockJobsService) GetJobs(ctx context.Context, uid uuid.UUID) (*model.Job, error) {
+func (m *MockJobsService) GetJobs(ctx context.Context, uid string) (*model.Job, error) {
 	args := m.Called(ctx, uid)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
