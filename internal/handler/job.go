@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/dnakolan/worker-pool-service/internal/model"
 	"github.com/dnakolan/worker-pool-service/internal/service"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -71,20 +71,33 @@ func (h *JobsHandler) ListJobsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(jobs)
 }
 
+// extractLastPathSegment returns the last segment of the URL path
+func extractLastPathSegment(path string) string {
+	segments := strings.Split(path, "/")
+	if len(segments) == 0 {
+		return ""
+	}
+	return segments[len(segments)-1]
+}
+
 func (h *JobsHandler) GetJobsHandler(w http.ResponseWriter, r *http.Request) {
-	uid, err := uuid.Parse(chi.URLParam(r, "uid"))
+	jobID := extractLastPathSegment(r.URL.Path)
+
+	if jobID == "" {
+		http.Error(w, "invalid job ID: invalid UUID length: 0", http.StatusBadRequest)
+		return
+	}
+
+	// Validate UUID format before calling service
+	_, err := uuid.Parse(jobID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	job, err := h.service.GetJobs(r.Context(), uid.String())
+	job, err := h.service.GetJobs(r.Context(), jobID)
 	if err != nil {
-		if err.Error() == "job not found" {
-			http.Error(w, err.Error(), http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 

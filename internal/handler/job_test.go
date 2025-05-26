@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -172,27 +173,64 @@ func TestCreateJobsHandler(t *testing.T) {
 func TestGetJobsHandler(t *testing.T) {
 	mockService := new(MockJobsService)
 	handler := NewJobsHandler(mockService)
-	testUID := uuid.New()
+	testUID := uuid.MustParse("ef09a103-f005-414c-9f1c-315a72f38281")
+	notFoundUID := uuid.New()
 
 	tests := []struct {
 		name           string
 		uid            string
 		setupMock      func()
 		expectedStatus int
-	}{}
+		expectedError  string
+	}{
+		{
+			name: "successful retrieval",
+			uid:  testUID.String(),
+			setupMock: func() {
+				job := &model.Job{
+					UID:     testUID,
+					Type:    "sleep",
+					Payload: model.SleepJobPayload{Duration: "1s"},
+					Status:  model.JobStatusPending,
+				}
+				mockService.On("GetJobs", mock.Anything, testUID.String()).Return(job, nil)
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "job not found",
+			uid:  notFoundUID.String(),
+			setupMock: func() {
+				mockService.On("GetJobs", mock.Anything, notFoundUID.String()).Return(nil, errors.New("job not found"))
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedError:  "job not found",
+		},
+		{
+			name:           "empty UUID",
+			uid:            "",
+			setupMock:      func() {}, // No service call expected
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid job ID: invalid UUID length: 0",
+		},
+		{
+			name:           "invalid UUID",
+			uid:            "invalid-uuid",
+			setupMock:      func() {}, // No service call expected
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  "invalid UUID length: 12",
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock()
 
+			// Create request with the job ID in the path
 			req := httptest.NewRequest(http.MethodGet, "/jobs/"+tt.uid, nil)
 			w := httptest.NewRecorder()
 
-			// Create a new chi context with the URL parameter
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("uid", tt.uid)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
+			// Call the handler directly
 			handler.GetJobsHandler(w, req)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
@@ -201,7 +239,14 @@ func TestGetJobsHandler(t *testing.T) {
 				var response model.Job
 				err := json.NewDecoder(w.Body).Decode(&response)
 				assert.NoError(t, err)
-				assert.Equal(t, testUID, response.UID)
+				assert.Equal(t, testUID.String(), response.UID.String())
+				assert.Equal(t, "sleep", response.Type)
+				assert.Equal(t, model.JobStatusPending, response.Status)
+				payload, ok := response.Payload.(model.SleepJobPayload)
+				assert.True(t, ok)
+				assert.Equal(t, "1s", payload.Duration)
+			} else if tt.expectedError != "" {
+				assert.Contains(t, w.Body.String(), tt.expectedError)
 			}
 
 			mockService.AssertExpectations(t)
