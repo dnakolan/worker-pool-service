@@ -34,8 +34,8 @@ func NewWorkerPool(ctx context.Context, numWorkers int, poolSize int) *WorkerPoo
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &WorkerPool{
-		jobQueue:    make(chan *model.Job),
-		resultQueue: make(chan *model.Job),
+		jobQueue:    make(chan *model.Job, poolSize),
+		resultQueue: make(chan *model.Job, poolSize),
 		quit:        make(chan struct{}),
 		jobs:        make(map[string]*model.Job),
 		numWorkers:  numWorkers,
